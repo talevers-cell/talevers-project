@@ -1,29 +1,66 @@
-import { v2 as cloudinary } from "cloudinary";
+// api/upload.js
+const { v2: cloudinary } = require("cloudinary");
 
-cloudinary.config({ secure: true });
+function parseCloudinaryUrl(cloudinaryUrl) {
+  // cloudinary://API_KEY:API_SECRET@CLOUD_NAME
+  if (!cloudinaryUrl) return null;
+  try {
+    const url = new URL(cloudinaryUrl);
+    const cloudName = url.hostname;
+    const [apiKey, apiSecret] = decodeURIComponent(url.username + ":" + url.password).split(":");
+    return { cloudName, apiKey, apiSecret };
+  } catch (e) {
+    return null;
+  }
+}
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
+  // Allow only POST
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { imageBase64, folder = "talevers/uploads" } = req.body || {};
-    if (!imageBase64) {
-      return res.status(400).json({ error: "No image provided" });
+    // Ensure Cloudinary env exists
+    const cfg = parseCloudinaryUrl(process.env.CLOUDINARY_URL);
+    if (!cfg || !cfg.cloudName || !cfg.apiKey || !cfg.apiSecret) {
+      return res.status(500).json({
+        error: "Cloudinary is not configured. Missing/invalid CLOUDINARY_URL in Vercel env.",
+      });
     }
 
-    const result = await cloudinary.uploader.upload(imageBase64, {
-      folder,
+    cloudinary.config({
+      cloud_name: cfg.cloudName,
+      api_key: cfg.apiKey,
+      api_secret: cfg.apiSecret,
+      secure: true,
     });
 
-    res.status(200).json({
-      success: true,
+    // Vercel usually parses JSON, but keep this safe:
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+
+    const imageBase64 = body?.imageBase64;
+    const folder = body?.folder || "talevers/uploads";
+
+    if (!imageBase64 || typeof imageBase64 !== "string") {
+      return res.status(400).json({ error: "Missing imageBase64" });
+    }
+
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(imageBase64, {
+      folder,
+      resource_type: "image",
+    });
+
+    return res.status(200).json({
       url: result.secure_url,
       public_id: result.public_id,
+      folder: result.folder || folder,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Upload failed" });
+    return res.status(500).json({
+      error: "Upload failed",
+      details: err?.message || String(err),
+    });
   }
-}
+};
