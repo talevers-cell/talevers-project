@@ -22,6 +22,7 @@ const TaleVersApp = () => {
     parent1Img: false,
     parent2Img: false,
   });
+
   const [uploadError, setUploadError] = useState({
     childImg: '',
     parent1Img: '',
@@ -47,7 +48,7 @@ const TaleVersApp = () => {
       body: JSON.stringify({ imageBase64, folder }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error || "Upload failed");
     if (!data?.url) throw new Error("No URL returned from upload API");
 
@@ -59,7 +60,7 @@ const TaleVersApp = () => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
 
-    // Optional: quick local preview while uploading (keeps your current behavior)
+    // Optional: quick local preview while uploading
     const localPreview = URL.createObjectURL(file);
     setFormData((prev) => ({ ...prev, [key]: localPreview }));
 
@@ -79,7 +80,7 @@ const TaleVersApp = () => {
       // ✅ Save the Cloudinary URL into formData (this is the "saved" proof)
       setFormData((prev) => ({ ...prev, [key]: cloudUrl }));
     } catch (err) {
-      setUploadError((prev) => ({ ...prev, [key]: err.message || "Upload error" }));
+      setUploadError((prev) => ({ ...prev, [key]: err?.message || "Upload error" }));
     } finally {
       setUploading((prev) => ({ ...prev, [key]: false }));
     }
@@ -92,7 +93,7 @@ const TaleVersApp = () => {
     if (uploading.childImg) return alert("انتظر: جاري رفع صورة الطفل...");
     if (uploadError.childImg) return alert("خطأ في رفع صورة الطفل. حاول مرة أخرى.");
 
-    // If include parents, block if still uploading or has errors (optional but recommended)
+    // If include parents, block if still uploading or has errors
     if (formData.includeParents) {
       if (uploading.parent1Img || uploading.parent2Img) {
         return alert("انتظر: جاري رفع صور الوالدين...");
@@ -212,7 +213,7 @@ const TaleVersApp = () => {
             <button
               onClick={generateStory}
               className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold"
-              disabled={uploading.childImg} // ✅ prevents click while uploading child
+              disabled={uploading.childImg}
             >
               إنشاء القصة (25 صفحة)
             </button>
